@@ -5,7 +5,8 @@ import streamlit as st
 
 # Configuração da página
 st.set_page_config(
-    page_title="Gestão de Ofícios - Secretaria de Educação de Mansidão", layout="wide"
+    page_title="Gestão de Ofícios - Secretaria de Educação de Mansidão",
+    layout="wide",
 )
 
 
@@ -80,7 +81,7 @@ def salvar_oficio(numero, ano_atual, tema, setor, responsavel):
     conn.commit()
     return (
         True,
-        f"✅ Ofício registrado com sucesso! **Número: {codigo_formatado}**",
+        f"✅ Ofício cadastrado com sucesso! **Número: {codigo_formatado}**",
     )
 
 
@@ -92,7 +93,7 @@ def deletar_oficio(id_oficio):
 
 
 # Interface Gráfica (Streamlit)
-st.title("📄 Sistema de Numeração de Ofícios")
+st.title("Sistema de Numeração de Ofícios")
 st.subheader("Secretaria de Educação de Mansidão")
 
 ano_atual = datetime.datetime.now().year
@@ -103,12 +104,14 @@ with st.form("form_oficio", clear_on_submit=False):
     col1, col2, col3 = st.columns([1, 2, 2])
 
     with col1:
-        numero_digitado = st.number_input(
+        # Formata a sugestão com zeros à esquerda (ex: 3 vira '003')
+        sugestao_formatada = f"{int(sugestao_num):03d}"
+
+        numero_digitado_str = st.text_input(
             "Número do Ofício",
-            min_value=1,
-            value=int(sugestao_num),
-            step=1,
-            help="O número sugere o próximo sequencial, mas pode ser alterado manualmente.",
+            value=sugestao_formatada,
+            max_chars=5,
+            help="O número sugere o próximo sequencial formatado (ex: 003), mas pode ser alterado manualmente.",
         )
 
     with col2:
@@ -122,16 +125,23 @@ with st.form("form_oficio", clear_on_submit=False):
     submetido = st.form_submit_button("Registrar Ofício")
 
     if submetido:
-        if tema and setor and responsavel and numero_digitado:
-            sucesso, mensagem = salvar_oficio(
-                int(numero_digitado), ano_atual, tema, setor, responsavel
-            )
+        if tema and setor and responsavel and numero_digitado_str:
+            # Valida se o usuário digitou apenas dígitos numéricos
+            if numero_digitado_str.isdigit():
+                numero_convertido = int(numero_digitado_str)
+                sucesso, mensagem = salvar_oficio(
+                    numero_convertido, ano_atual, tema, setor, responsavel
+                )
 
-            if sucesso:
-                st.success(mensagem)
-                st.rerun()
+                if sucesso:
+                    st.success(mensagem)
+                    st.rerun()
+                else:
+                    st.error(mensagem)
             else:
-                st.error(mensagem)
+                st.error(
+                    "❌ Digite apenas números no campo 'Número do Ofício'."
+                )
         else:
             st.warning("⚠️ Preencha todos os campos antes de registrar.")
 
