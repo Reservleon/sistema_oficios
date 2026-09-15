@@ -1,8 +1,7 @@
 import datetime
-import io
-import sqlite3
 import pandas as pd
 import streamlit as st
+from supabase import create_client, Client
 
 # Configuração da página
 st.set_page_config(
@@ -10,51 +9,41 @@ st.set_page_config(
     layout="wide",
 )
 
+# Conexão com o Supabase usando as chaves dos Secrets
+@st.cache_resource
+def init_supabase() -> Client:
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    return create_client(url, key)
 
-# Conexão com o banco de dados SQLite
-def conectar_bd():
-    conn = sqlite3.connect("oficios_secretaria.db", check_same_thread=False)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS oficios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            numero INTEGER,
-            ano INTEGER,
-            codigo_oficio TEXT,
-            tema TEXT,
-            setor TEXT,
-            responsavel TEXT,
-            data_emissao TEXT
-        )
-    """)
-    conn.commit()
-    return conn
-
-
-conn = conectar_bd()
+supabase = init_supabase()
 
 
 # Função para obter a sugestão do próximo número de ofício
 def obter_sugestao_numero(ano_atual):
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT MAX(numero) FROM oficios WHERE ano = ?", (ano_atual,)
+    response = (
+        supabase.table("oficios")
+        .select("numero")
+        .eq("ano", ano_atual)
+        .order("numero", desc=True)
+        .limit(1)
+        .execute()
     )
-    resultado = cursor.fetchone()[0]
-    return 1 if resultado is None else resultado + 1
+    if response.data:
+        return response.data[0]["numero"] + 1
+    return 1
 
 
-# Função para salvar o ofício no banco com verificação de duplicação
+# Função para salvar o ofício no Supabase com verificação de duplicação
 def salvar_oficio(numero, ano_atual, tema, setor, responsavel):
-    cursor = conn.cursor()
-
-    cursor.execute(
-        "SELECT id FROM oficios WHERE numero = ? AND ano = ?",
-        (numero, ano_atual),
+    checar = (
+        supabase.table("oficios")
+        .select("id")
+        .eq("numero", numero)
+        .eq("ano", ano_atual)
+        .execute()
     )
-    existe = cursor.fetchone()
-
-    if existe:
+    if checar.data:
         return (
             False,
             f"❌ O número de ofício {numero}/{ano_atual} já foi cadastrado por outro usuário!",
@@ -63,23 +52,17 @@ def salvar_oficio(numero, ano_atual, tema, setor, responsavel):
     codigo_formatado = f"OF-SEC-{ano_atual}/{numero:03d}"
     data_hoje = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
 
-    cursor.execute(
-        """
-        INSERT INTO oficios (numero, ano, codigo_oficio, tema, setor, responsavel, data_emissao)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """,
-        (
-            numero,
-            ano_atual,
-            codigo_formatado,
-            tema,
-            setor,
-            responsavel,
-            data_hoje,
-        ),
-    )
+    dados = {
+        "numero": numero,
+        "ano": ano_atual,
+        "codigo_oficio": codigo_formatado,
+        "tema": tema,
+        "setor": setor,
+        "responsavel": responsavel,
+        "data_emissao": data_hoje,
+    }
 
-    conn.commit()
+    supabase.table("oficios").insert(dados).execute()
     return (
         True,
         f"✅ Ofício cadastrado com sucesso! **Número: {codigo_formatado}**",
@@ -88,9 +71,7 @@ def salvar_oficio(numero, ano_atual, tema, setor, responsavel):
 
 # Função para remover um ofício do banco de dados
 def deletar_oficio(id_oficio):
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM oficios WHERE id = ?", (id_oficio,))
-    conn.commit()
+    supabase.table("oficios").delete().eq("id", id_oficio).execute()
 
 
 # Interface Gráfica (Streamlit)
@@ -148,25 +129,27 @@ st.divider()
 # Tabela de Consulta em Tempo Real
 st.subheader("📋 Ofícios Registrados")
 
-cursor = conn.cursor()
-cursor.execute(
-    "SELECT id, codigo_oficio, numero, ano, tema, setor, responsavel, data_emissao FROM oficios ORDER BY id DESC"
+response = (
+    supabase.table("oficios")
+    .select("id, codigo_oficio, numero, ano, tema, setor, responsavel, data_emissao")
+    .order("id", desc=True)
+    .execute()
 )
-registros = cursor.fetchall()
+registros = response.data
 
 if registros:
-    df = pd.DataFrame(
-        registros,
-        columns=[
-            "ID",
-            "Código",
-            "Número",
-            "Ano",
-            "Assunto / Tema",
-            "Setor",
-            "Responsável",
-            "Data/Hora",
-        ],
+    df = pd.DataFrame(registros)
+    df = df.rename(
+        columns={
+            "id": "ID",
+            "codigo_oficio": "Código",
+            "numero": "Número",
+            "ano": "Ano",
+            "tema": "Assunto / Tema",
+            "setor": "Setor",
+            "responsavel": "Responsável",
+            "data_emissao": "Data/Hora",
+        }
     )
 
     col_busca, col_download = st.columns([3, 1])
@@ -177,13 +160,12 @@ if registros:
         )
 
     with col_download:
-        # Prepara a conversão em arquivo compatível com Excel
         csv_excel = df.drop(columns=["ID"]).to_csv(
             index=False, sep=";", encoding="utf-8-sig"
         )
         data_hoje_str = datetime.datetime.now().strftime("%Y-%m-%d")
 
-        st.write("")  # Espaçamento para alinhar com a caixa de busca
+        st.write("")
         st.download_button(
             label="📥 Baixar Backup (Excel)",
             data=csv_excel,
