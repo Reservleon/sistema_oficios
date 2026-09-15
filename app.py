@@ -74,9 +74,20 @@ def deletar_oficio(id_oficio):
     supabase.table("oficios").delete().eq("id", id_oficio).execute()
 
 
-# Interface Gráfica (Streamlit)
-st.title("Sistema de Numeração de Ofícios")
-st.subheader("Secretaria de Educação de Mansidão")
+# --- CABEÇALHO COM LOGO ---
+col_logo, col_titulo = st.columns([1, 4])
+
+with col_logo:
+    try:
+        st.image("logo.png", width=140)
+    except Exception:
+        st.info("🖼️ [Envie o arquivo logo.png para o GitHub]")
+
+with col_titulo:
+    st.title("Sistema de Numeração de Ofícios")
+    st.subheader("Secretaria Municipal de Educação de Mansidão")
+
+st.divider()
 
 ano_atual = datetime.datetime.now().year
 sugestao_num = obter_sugestao_numero(ano_atual)
