@@ -1,4 +1,5 @@
 import datetime
+import zoneinfo
 import pandas as pd
 import streamlit as st
 from supabase import create_client, Client
@@ -17,6 +18,17 @@ def init_supabase() -> Client:
     return create_client(url, key)
 
 supabase = init_supabase()
+
+
+# Função para obter a hora atual no fuso da Bahia / Brasília (UTC-3)
+def obter_data_hora_brasil():
+    try:
+        fuso_br = zoneinfo.ZoneInfo("America/Bahia")
+        return datetime.datetime.now(fuso_br).strftime("%d/%m/%Y %H:%M")
+    except Exception:
+        # Fallback de 3 horas a menos caso o SO não encontre a zona
+        fuso_manual = datetime.timezone(datetime.timedelta(hours=-3))
+        return datetime.datetime.now(fuso_manual).strftime("%d/%m/%Y %H:%M")
 
 
 # Função para obter a sugestão do próximo número de ofício
@@ -50,7 +62,7 @@ def salvar_oficio(numero, ano_atual, tema, setor, responsavel):
         )
 
     codigo_formatado = f"OF-SEC-{ano_atual}/{numero:03d}"
-    data_hoje = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+    data_hoje = obter_data_hora_brasil()
 
     dados = {
         "numero": numero,
@@ -89,7 +101,9 @@ with col_titulo:
 
 st.divider()
 
-ano_atual = datetime.datetime.now().year
+# Obtém o ano atual considerando o fuso do Brasil
+fuso_br = zoneinfo.ZoneInfo("America/Bahia")
+ano_atual = datetime.datetime.now(fuso_br).year
 sugestao_num = obter_sugestao_numero(ano_atual)
 
 # Formulário de Cadastro
@@ -174,7 +188,7 @@ if registros:
         csv_excel = df.drop(columns=["ID"]).to_csv(
             index=False, sep=";", encoding="utf-8-sig"
         )
-        data_hoje_str = datetime.datetime.now().strftime("%Y-%m-%d")
+        data_hoje_str = datetime.datetime.now(fuso_br).strftime("%Y-%m-%d")
 
         st.write("")
         st.download_button(
