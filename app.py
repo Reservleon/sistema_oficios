@@ -1,4 +1,5 @@
 import datetime
+import io
 import sqlite3
 import pandas as pd
 import streamlit as st
@@ -104,9 +105,7 @@ with st.form("form_oficio", clear_on_submit=False):
     col1, col2, col3 = st.columns([1, 2, 2])
 
     with col1:
-        # Formata a sugestão com zeros à esquerda (ex: 3 vira '003')
         sugestao_formatada = f"{int(sugestao_num):03d}"
-
         numero_digitado_str = st.text_input(
             "Número do Ofício",
             value=sugestao_formatada,
@@ -126,7 +125,6 @@ with st.form("form_oficio", clear_on_submit=False):
 
     if submetido:
         if tema and setor and responsavel and numero_digitado_str:
-            # Valida se o usuário digitou apenas dígitos numéricos
             if numero_digitado_str.isdigit():
                 numero_convertido = int(numero_digitado_str)
                 sucesso, mensagem = salvar_oficio(
@@ -148,9 +146,8 @@ with st.form("form_oficio", clear_on_submit=False):
 st.divider()
 
 # Tabela de Consulta em Tempo Real
-st.subheader("Ofícios Registrados")
+st.subheader("📋 Ofícios Registrados")
 
-# Busca todos os dados no banco de dados
 cursor = conn.cursor()
 cursor.execute(
     "SELECT id, codigo_oficio, numero, ano, tema, setor, responsavel, data_emissao FROM oficios ORDER BY id DESC"
@@ -172,7 +169,29 @@ if registros:
         ],
     )
 
-    busca = st.text_input("🔍 Buscar por assunto, código, responsável ou setor:")
+    col_busca, col_download = st.columns([3, 1])
+
+    with col_busca:
+        busca = st.text_input(
+            "🔍 Buscar por assunto, código, responsável ou setor:"
+        )
+
+    with col_download:
+        # Prepara a conversão em arquivo compatível com Excel
+        csv_excel = df.drop(columns=["ID"]).to_csv(
+            index=False, sep=";", encoding="utf-8-sig"
+        )
+        data_hoje_str = datetime.datetime.now().strftime("%Y-%m-%d")
+
+        st.write("")  # Espaçamento para alinhar com a caixa de busca
+        st.download_button(
+            label="📥 Baixar Backup (Excel)",
+            data=csv_excel,
+            file_name=f"backup_oficios_{data_hoje_str}.csv",
+            mime="text/csv",
+            help="Baixa uma planilha formatada com todos os ofícios registrados.",
+        )
+
     if busca:
         df_exibicao = df[
             df.apply(
@@ -185,7 +204,6 @@ if registros:
     else:
         df_exibicao = df
 
-    # Exibe a tabela ocultando a coluna ID técnica
     st.dataframe(df_exibicao.drop(columns=["ID"]), width=1000)
 
     st.divider()
@@ -193,7 +211,6 @@ if registros:
     # Área de Exclusão de Ofício
     st.subheader("🗑️ Cancelar / Remover Ofício Cadastrado")
 
-    # Opções para a caixa de seleção com formato "Código - Assunto"
     opcoes_oficios = {
         f"{row['Código']} - {row['Assunto / Tema']} ({row['Setor']})": row["ID"]
         for _, row in df.iterrows()
