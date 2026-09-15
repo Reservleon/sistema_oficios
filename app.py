@@ -93,7 +93,7 @@ with col_logo:
     try:
         st.image("logo.png", width=140)
     except Exception:
-        st.info("🖼️ [Envie o arquivo logo.png para o GitHub]")
+        st.info(" [Envie o arquivo logo.png para o GitHub]")
 
 with col_titulo:
     st.title("Sistema de Numeração de Ofícios")
@@ -152,7 +152,7 @@ with st.form("form_oficio", clear_on_submit=False):
 st.divider()
 
 # Tabela de Consulta em Tempo Real
-st.subheader("📋 Ofícios Registrados")
+st.subheader("Ofícios Registrados")
 
 response = (
     supabase.table("oficios")
@@ -216,7 +216,7 @@ if registros:
     st.divider()
 
     # Área de Exclusão de Ofício
-    st.subheader("🗑️ Cancelar / Remover Ofício Cadastrado")
+    st.subheader("Cancelar / Remover Ofício Cadastrado")
 
     opcoes_oficios = {
         f"{row['Código']} - {row['Assunto / Tema']} ({row['Setor']})": row["ID"]
